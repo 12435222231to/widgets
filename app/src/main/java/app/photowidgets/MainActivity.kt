@@ -10,6 +10,10 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material3.Slider
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -67,6 +72,11 @@ class MainActivity : ComponentActivity() {
                 var selectedTab by remember { mutableIntStateOf(0) }
                 var creating by remember { mutableIntStateOf(0) }
                 var selectedPhoto by remember { mutableStateOf<Uri?>(null) }
+                var cropScale by remember { mutableFloatStateOf(1f) }
+                var cropX by remember { mutableFloatStateOf(0f) }
+                var cropY by remember { mutableFloatStateOf(0f) }
+                var photoAlpha by remember { mutableFloatStateOf(1f) }
+                var shapeChoice by remember { mutableIntStateOf(0) }
 
                 val photoPicker = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.PickVisualMedia()
@@ -74,11 +84,15 @@ class MainActivity : ComponentActivity() {
                     if (uri != null) {
                         selectedPhoto = uri
                         creating = 1
+                        cropScale = 1f
+                        cropX = 0f
+                        cropY = 0f
+                        photoAlpha = 1f
                     }
                 }
 
                 fun goBack() {
-                    if (creating > 0) {
+                    if (creating > 1) { creating-- } else if (creating == 1) {
                         creating = 0
                         selectedPhoto = null
                     } else {
@@ -116,15 +130,20 @@ class MainActivity : ComponentActivity() {
                         color = AppBackground
                     ) {
                         when {
-                            creating > 0 -> PhotoSelectionScreen(
+                            creating == 1 -> PhotoEditorScreen(
                                 photo = selectedPhoto,
-                                onBack = ::goBack,
-                                onChooseAgain = {
+                                scale = cropScale, onScaleChange = { cropScale = it },
+                                offsetX = cropX, onOffsetXChange = { cropX = it },
+                                offsetY = cropY, onOffsetYChange = { cropY = it },
+                                alpha = photoAlpha, onAlphaChange = { photoAlpha = it },
+                                onBack = ::goBack, onNext = { creating = 2 }, onChooseAgain = {
                                     photoPicker.launch(
                                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                     )
                                 }
                             )
+                            creating == 2 -> ShapeSelectionScreen(shapeChoice, { shapeChoice = it }, { creating = 1 }, { creating = 3 })
+                            creating == 3 -> SizeSelectionScreen(onBack = { creating = 2 })
                             selectedTab == 0 -> HomeScreen(
                                 onCreate = {
                                     photoPicker.launch(
@@ -211,57 +230,99 @@ private fun MyWidgetsScreen() {
     }
 }
 
+
 @Composable
-private fun PhotoSelectionScreen(
+private fun PhotoEditorScreen(
     photo: Uri?,
-    onBack: () -> Unit,
-    onChooseAgain: () -> Unit
+    scale: Float, onScaleChange: (Float) -> Unit,
+    offsetX: Float, onOffsetXChange: (Float) -> Unit,
+    offsetY: Float, onOffsetYChange: (Float) -> Unit,
+    alpha: Float, onAlphaChange: (Float) -> Unit,
+    onBack: () -> Unit, onNext: () -> Unit, onChooseAgain: () -> Unit
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppBackground)
-            .padding(22.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        modifier = Modifier.fillMaxSize().background(AppBackground).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text(
-            text = "‹  Назад",
-            color = MutedText,
-            fontSize = 16.sp,
-            modifier = Modifier
-                .clickable(onClick = onBack)
-                .padding(vertical = 8.dp)
+        Text("‹  Назад", color = MutedText, modifier = Modifier.clickable(onClick = onBack).padding(vertical = 6.dp))
+        Text("Редактирование фото", color = MainText, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
+        Text("Перемещай фото одним пальцем и меняй масштаб двумя пальцами.", color = MutedText, fontSize = 13.sp)
+        AsyncImage(
+            model = photo, contentDescription = "Редактируемая фотография",
+            modifier = Modifier.fillMaxWidth().weight(1f)
+                .background(CardBackground, RoundedCornerShape(22.dp))
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        onScaleChange((scale * zoom).coerceIn(1f, 5f))
+                        onOffsetXChange(offsetX + pan.x)
+                        onOffsetYChange(offsetY + pan.y)
+                    }
+                }
+                .graphicsLayer {
+                    scaleX = scale; scaleY = scale
+                    translationX = offsetX; translationY = offsetY
+                    alpha = alpha
+                },
+            contentScale = ContentScale.Crop
         )
-        Text(
-            text = "Выбор фотографии",
-            color = MainText,
-            fontSize = 26.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-        if (photo != null) {
-            AsyncImage(
-                model = photo,
-                contentDescription = "Выбранная фотография",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentScale = ContentScale.Fit
-            )
-            Button(
-                onClick = onChooseAgain,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AccentSurface)
-            ) {
-                Text("Выбрать другую фотографию")
+        Text("Прозрачность", color = MainText, fontSize = 14.sp)
+        Slider(value = alpha, onValueChange = onAlphaChange, valueRange = 0.1f..1f)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(onClick = { onScaleChange(1f); onOffsetXChange(0f); onOffsetYChange(0f); onAlphaChange(1f) },
+                modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = CardBackground)) {
+                Text("Сбросить")
             }
-            Text(
-                "Следующий этап — настройка формы и кадрирования фотографии.",
-                color = MutedText,
-                fontSize = 13.sp
-            )
-        } else {
-            Text("Выбери фотографию из галереи телефона.", color = MutedText, fontSize = 14.sp)
+            Button(onClick = onChooseAgain, modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = CardBackground)) {
+                Text("Другое фото")
+            }
         }
+        Button(onClick = onNext, modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = AccentSurface)) {
+            Text("Далее")
+        }
+    }
+}
+
+@Composable
+private fun ShapeSelectionScreen(
+    selected: Int, onSelect: (Int) -> Unit, onBack: () -> Unit, onNext: () -> Unit
+) {
+    val names = listOf("Квадрат", "Прямоугольник", "Капсула")
+    Column(Modifier.fillMaxSize().background(AppBackground).padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Text("‹  Назад", color = MutedText, modifier = Modifier.clickable(onClick = onBack).padding(vertical = 6.dp))
+        Text("Выбор формы", color = MainText, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
+        names.forEachIndexed { index, name ->
+            Column(
+                Modifier.fillMaxWidth().background(if (selected == index) AccentSurface else CardBackground,
+                    RoundedCornerShape(20.dp)).clickable { onSelect(index) }.padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(when(index) { 0 -> "▢"; 1 -> "▭"; else -> "⬭" }, color = MainText, fontSize = 42.sp)
+                Text(name, color = MainText)
+                if (selected == index) Text("Выбрано", color = MutedText, fontSize = 12.sp)
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        Button(onClick = onNext, modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = AccentSurface)) { Text("Далее") }
+    }
+}
+
+@Composable
+private fun SizeSelectionScreen(onBack: () -> Unit) {
+    var size by remember { mutableFloatStateOf(2f) }
+    Column(Modifier.fillMaxSize().background(AppBackground).padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Text("‹  Назад", color = MutedText, modifier = Modifier.clickable(onClick = onBack).padding(vertical = 6.dp))
+        Text("Размер виджета", color = MainText, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
+        Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+            Slider(value = size, onValueChange = { size = it }, valueRange = 1f..4f, steps = 2, modifier = Modifier.weight(0.7f))
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Surface(Modifier.size((65 + size * 22).dp), shape = RoundedCornerShape(18.dp), color = AccentSurface) {}
+                Text("${size.toInt()} × ${size.toInt()}", color = MainText, fontSize = 18.sp)
+                Text("Предпросмотр", color = MutedText, fontSize = 12.sp)
+            }
+        }
+        Text("Экран выбора размера. Добавление настоящего виджета будет следующим этапом.", color = MutedText, fontSize = 13.sp)
     }
 }
