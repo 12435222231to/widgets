@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PhotoWidgets</string>
+    <string name="widget_description">A home screen widget for your favorite photo</string>
+    <string name="widget_image_description">Your selected photo</string>
+    <string name="widget_placeholder">Choose a photo</string>
+</resources>
