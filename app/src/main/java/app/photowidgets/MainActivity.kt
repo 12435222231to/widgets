@@ -1,6 +1,7 @@
 package app.photowidgets
 
 import android.net.Uri
+import android.app.WallpaperManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -8,6 +9,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
@@ -44,10 +46,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.drawable.toBitmap
 import coil.compose.AsyncImage
 
 private val AppBackground = Color(0xFF111216)
@@ -73,7 +78,6 @@ class MainActivity : ComponentActivity() {
                 var selectedTab by remember { mutableIntStateOf(0) }
                 var creating by remember { mutableIntStateOf(0) }
                 var selectedPhoto by remember { mutableStateOf<Uri?>(null) }
-                var selectedWallpaper by remember { mutableStateOf<Uri?>(null) }
                 var cropScale by remember { mutableFloatStateOf(1f) }
                 var cropX by remember { mutableFloatStateOf(0f) }
                 var cropY by remember { mutableFloatStateOf(0f) }
@@ -91,12 +95,6 @@ class MainActivity : ComponentActivity() {
                         cropY = 0f
                         photoAlpha = 1f
                     }
-                }
-
-                val wallpaperPicker = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.PickVisualMedia()
-                ) { uri ->
-                    if (uri != null) selectedWallpaper = uri
                 }
 
                 fun goBack() {
@@ -144,12 +142,6 @@ class MainActivity : ComponentActivity() {
                                 offsetX = cropX, onOffsetXChange = { cropX = it },
                                 offsetY = cropY, onOffsetYChange = { cropY = it },
                                 alpha = photoAlpha, onAlphaChange = { photoAlpha = it },
-                                wallpaper = selectedWallpaper,
-                                onChooseWallpaper = {
-                                    wallpaperPicker.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                },
                                 onBack = ::goBack, onNext = { creating = 2 }, onChooseAgain = {
                                     photoPicker.launch(
                                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -252,7 +244,6 @@ private fun PhotoEditorScreen(
     offsetX: Float, onOffsetXChange: (Float) -> Unit,
     offsetY: Float, onOffsetYChange: (Float) -> Unit,
     alpha: Float, onAlphaChange: (Float) -> Unit,
-    wallpaper: Uri?, onChooseWallpaper: () -> Unit,
     onBack: () -> Unit, onNext: () -> Unit, onChooseAgain: () -> Unit
 ) {
     Column(
@@ -266,10 +257,18 @@ private fun PhotoEditorScreen(
             modifier = Modifier.fillMaxWidth().weight(1f)
                 .background(CardBackground, RoundedCornerShape(22.dp))
         ) {
-            if (wallpaper != null) {
-                AsyncImage(
-                    model = wallpaper,
-                    contentDescription = "Выбранные обои пользователя",
+            val context = LocalContext.current
+            val homeWallpaper = remember(context) {
+                try {
+                    WallpaperManager.getInstance(context).drawable?.toBitmap()?.asImageBitmap()
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            if (homeWallpaper != null) {
+                Image(
+                    bitmap = homeWallpaper,
+                    contentDescription = "Текущие обои главного экрана",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
@@ -279,8 +278,8 @@ private fun PhotoEditorScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Text("Фон для проверки прозрачности", color = MainText, fontSize = 14.sp)
-                    Text("Выбери свои обои ниже", color = MutedText, fontSize = 12.sp)
+                    Text("Не удалось получить изображение обоев", color = MainText, fontSize = 14.sp)
+                    Text("Показываем нейтральный фон для предпросмотра", color = MutedText, fontSize = 12.sp)
                 }
             }
             AsyncImage(
@@ -300,19 +299,6 @@ private fun PhotoEditorScreen(
                     },
                 contentScale = ContentScale.Crop
             )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Button(
-                onClick = onChooseWallpaper,
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CardBackground, contentColor = MainText)
-            ) { Text(if (wallpaper == null) "Выбрать обои" else "Изменить обои", color = MainText, maxLines = 1) }
-            Text(if (wallpaper == null) "Фон не выбран" else "Обои выбраны", color = MutedText, fontSize = 11.sp)
         }
         Text("Прозрачность", color = MainText, fontSize = 14.sp)
         Slider(value = alpha, onValueChange = onAlphaChange, valueRange = 0.1f..1f)
