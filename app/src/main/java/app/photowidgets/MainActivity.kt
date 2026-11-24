@@ -1,15 +1,15 @@
 package app.photowidgets
 
 import android.net.Uri
-import android.app.WallpaperManager
 import android.os.Bundle
+import android.view.WindowManager
+import android.graphics.drawable.ColorDrawable
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
@@ -46,13 +46,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
 import coil.compose.AsyncImage
 
 private val AppBackground = Color(0xFF111216)
@@ -64,6 +61,8 @@ private val MutedText = Color(0xFFA5A8B0)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+        window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
         setContent {
             MaterialTheme(
                 colorScheme = darkColorScheme(
@@ -111,7 +110,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Scaffold(
-                    containerColor = AppBackground,
+                    containerColor = if (creating == 1) Color.Transparent else AppBackground,
                     bottomBar = {
                         NavigationBar(containerColor = Color(0xFF181A1F)) {
                             NavigationBarItem(
@@ -133,7 +132,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(innerPadding),
-                        color = AppBackground
+                        color = if (creating == 1) Color.Transparent else AppBackground
                     ) {
                         when {
                             creating == 1 -> PhotoEditorScreen(
@@ -247,7 +246,7 @@ private fun PhotoEditorScreen(
     onBack: () -> Unit, onNext: () -> Unit, onChooseAgain: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxSize().background(AppBackground).padding(20.dp),
+        modifier = Modifier.fillMaxSize().background(Color.Transparent).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text("‹  Назад", color = MutedText, modifier = Modifier.clickable(onClick = onBack).padding(vertical = 6.dp))
@@ -257,31 +256,7 @@ private fun PhotoEditorScreen(
             modifier = Modifier.fillMaxWidth().weight(1f)
                 .background(CardBackground, RoundedCornerShape(22.dp))
         ) {
-            val context = LocalContext.current
-            val homeWallpaper = remember(context) {
-                try {
-                    WallpaperManager.getInstance(context).drawable?.toBitmap()?.asImageBitmap()
-                } catch (_: Exception) {
-                    null
-                }
-            }
-            if (homeWallpaper != null) {
-                Image(
-                    bitmap = homeWallpaper,
-                    contentDescription = "Текущие обои главного экрана",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Column(
-                    modifier = Modifier.fillMaxSize().background(Color(0xFF292C33), RoundedCornerShape(22.dp)).padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text("Не удалось получить изображение обоев", color = MainText, fontSize = 14.sp)
-                    Text("Показываем нейтральный фон для предпросмотра", color = MutedText, fontSize = 12.sp)
-                }
-            }
+            // Transparent preview window reveals the live system wallpaper behind this area.
             AsyncImage(
                 model = photo, contentDescription = "Редактируемая фотография",
                 modifier = Modifier.fillMaxSize()
@@ -339,13 +314,19 @@ private fun ShapeSelectionScreen(
             }
         }
         Spacer(Modifier.weight(1f))
-        Button(
-            onClick = onNext,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(18.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AccentSurface, contentColor = MainText)
+        Box(
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+                .background(AccentSurface, RoundedCornerShape(18.dp))
+                .clickable(onClick = onNext),
+            contentAlignment = Alignment.Center
         ) {
-            Text("Далее", color = MainText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(
+                text = "Далее",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
         }
     }
 }
