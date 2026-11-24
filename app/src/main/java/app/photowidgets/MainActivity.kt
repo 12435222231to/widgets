@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -72,6 +73,7 @@ class MainActivity : ComponentActivity() {
                 var selectedTab by remember { mutableIntStateOf(0) }
                 var creating by remember { mutableIntStateOf(0) }
                 var selectedPhoto by remember { mutableStateOf<Uri?>(null) }
+                var selectedWallpaper by remember { mutableStateOf<Uri?>(null) }
                 var cropScale by remember { mutableFloatStateOf(1f) }
                 var cropX by remember { mutableFloatStateOf(0f) }
                 var cropY by remember { mutableFloatStateOf(0f) }
@@ -89,6 +91,12 @@ class MainActivity : ComponentActivity() {
                         cropY = 0f
                         photoAlpha = 1f
                     }
+                }
+
+                val wallpaperPicker = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.PickVisualMedia()
+                ) { uri ->
+                    if (uri != null) selectedWallpaper = uri
                 }
 
                 fun goBack() {
@@ -136,6 +144,12 @@ class MainActivity : ComponentActivity() {
                                 offsetX = cropX, onOffsetXChange = { cropX = it },
                                 offsetY = cropY, onOffsetYChange = { cropY = it },
                                 alpha = photoAlpha, onAlphaChange = { photoAlpha = it },
+                                wallpaper = selectedWallpaper,
+                                onChooseWallpaper = {
+                                    wallpaperPicker.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
                                 onBack = ::goBack, onNext = { creating = 2 }, onChooseAgain = {
                                     photoPicker.launch(
                                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -238,6 +252,7 @@ private fun PhotoEditorScreen(
     offsetX: Float, onOffsetXChange: (Float) -> Unit,
     offsetY: Float, onOffsetYChange: (Float) -> Unit,
     alpha: Float, onAlphaChange: (Float) -> Unit,
+    wallpaper: Uri?, onChooseWallpaper: () -> Unit,
     onBack: () -> Unit, onNext: () -> Unit, onChooseAgain: () -> Unit
 ) {
     Column(
@@ -247,24 +262,58 @@ private fun PhotoEditorScreen(
         Text("‹  Назад", color = MutedText, modifier = Modifier.clickable(onClick = onBack).padding(vertical = 6.dp))
         Text("Редактирование фото", color = MainText, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
         Text("Перемещай фото одним пальцем и меняй масштаб двумя пальцами.", color = MutedText, fontSize = 13.sp)
-        AsyncImage(
-            model = photo, contentDescription = "Редактируемая фотография",
+        Box(
             modifier = Modifier.fillMaxWidth().weight(1f)
                 .background(CardBackground, RoundedCornerShape(22.dp))
-                .pointerInput(Unit) {
-                    detectTransformGestures { _, pan, zoom, _ ->
-                        onScaleChange((scale * zoom).coerceIn(1f, 5f))
-                        onOffsetXChange(offsetX + pan.x)
-                        onOffsetYChange(offsetY + pan.y)
-                    }
+        ) {
+            if (wallpaper != null) {
+                AsyncImage(
+                    model = wallpaper,
+                    contentDescription = "Выбранные обои пользователя",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxSize().background(Color(0xFF292C33), RoundedCornerShape(22.dp)).padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text("Фон для проверки прозрачности", color = MainText, fontSize = 14.sp)
+                    Text("Выбери свои обои ниже", color = MutedText, fontSize = 12.sp)
                 }
-                .graphicsLayer {
-                    scaleX = scale; scaleY = scale
-                    translationX = offsetX; translationY = offsetY
-                    this.alpha = alpha
-                },
-            contentScale = ContentScale.Crop
-        )
+            }
+            AsyncImage(
+                model = photo, contentDescription = "Редактируемая фотография",
+                modifier = Modifier.fillMaxSize()
+                    .pointerInput(scale, offsetX, offsetY) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            onScaleChange((scale * zoom).coerceIn(1f, 5f))
+                            onOffsetXChange(offsetX + pan.x)
+                            onOffsetYChange(offsetY + pan.y)
+                        }
+                    }
+                    .graphicsLayer {
+                        scaleX = scale; scaleY = scale
+                        translationX = offsetX; translationY = offsetY
+                        this.alpha = alpha
+                    },
+                contentScale = ContentScale.Crop
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Button(
+                onClick = onChooseWallpaper,
+                modifier = Modifier.weight(1f).height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = CardBackground, contentColor = MainText)
+            ) { Text(if (wallpaper == null) "Выбрать обои" else "Изменить обои", color = MainText, maxLines = 1) }
+            Text(if (wallpaper == null) "Фон не выбран" else "Обои выбраны", color = MutedText, fontSize = 11.sp)
+        }
         Text("Прозрачность", color = MainText, fontSize = 14.sp)
         Slider(value = alpha, onValueChange = onAlphaChange, valueRange = 0.1f..1f)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -304,8 +353,14 @@ private fun ShapeSelectionScreen(
             }
         }
         Spacer(Modifier.weight(1f))
-        Button(onClick = onNext, modifier = Modifier.fillMaxWidth().height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AccentSurface)) { Text("Далее") }
+        Button(
+            onClick = onNext,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(18.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = AccentSurface, contentColor = MainText)
+        ) {
+            Text("Далее", color = MainText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
     }
 }
 
