@@ -261,7 +261,7 @@ private fun PhotoEditorScreen(
                 .graphicsLayer {
                     scaleX = scale; scaleY = scale
                     translationX = offsetX; translationY = offsetY
-                    alpha = alpha
+                    this.alpha = alpha
                 },
             contentScale = ContentScale.Crop
         )
