@@ -1,9 +1,15 @@
 package app.photowidgets
 
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -25,14 +32,17 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 
 private val AppBackground = Color(0xFF111216)
 private val CardBackground = Color(0xFF202228)
@@ -56,19 +66,42 @@ class MainActivity : ComponentActivity() {
             ) {
                 var selectedTab by remember { mutableIntStateOf(0) }
                 var creating by remember { mutableIntStateOf(0) }
+                var selectedPhoto by remember { mutableStateOf<Uri?>(null) }
+
+                val photoPicker = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.PickVisualMedia()
+                ) { uri ->
+                    if (uri != null) {
+                        selectedPhoto = uri
+                        creating = 1
+                    }
+                }
+
+                fun goBack() {
+                    if (creating > 0) {
+                        creating = 0
+                        selectedPhoto = null
+                    } else {
+                        selectedTab = 0
+                    }
+                }
+
+                BackHandler(enabled = creating > 0 || selectedTab != 0) {
+                    goBack()
+                }
 
                 Scaffold(
                     containerColor = AppBackground,
                     bottomBar = {
                         NavigationBar(containerColor = Color(0xFF181A1F)) {
                             NavigationBarItem(
-                                selected = selectedTab == 0,
+                                selected = selectedTab == 0 && creating == 0,
                                 onClick = { selectedTab = 0; creating = 0 },
                                 icon = { Text("⌂", fontSize = 21.sp) },
                                 label = { Text("Главная") }
                             )
                             NavigationBarItem(
-                                selected = selectedTab == 1,
+                                selected = selectedTab == 1 && creating == 0,
                                 onClick = { selectedTab = 1; creating = 0 },
                                 icon = { Text("▦", fontSize = 19.sp) },
                                 label = { Text("Мои виджеты") }
@@ -83,11 +116,22 @@ class MainActivity : ComponentActivity() {
                         color = AppBackground
                     ) {
                         when {
-                            creating > 0 -> CreatePlaceholder(
-                                step = creating,
-                                onBack = { if (creating > 1) creating-- else creating = 0 }
+                            creating > 0 -> PhotoSelectionScreen(
+                                photo = selectedPhoto,
+                                onBack = ::goBack,
+                                onChooseAgain = {
+                                    photoPicker.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                }
                             )
-                            selectedTab == 0 -> HomeScreen(onCreate = { creating = 1 })
+                            selectedTab == 0 -> HomeScreen(
+                                onCreate = {
+                                    photoPicker.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                }
+                            )
                             else -> MyWidgetsScreen()
                         }
                     }
@@ -168,36 +212,56 @@ private fun MyWidgetsScreen() {
 }
 
 @Composable
-private fun CreatePlaceholder(step: Int, onBack: () -> Unit) {
+private fun PhotoSelectionScreen(
+    photo: Uri?,
+    onBack: () -> Unit,
+    onChooseAgain: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(AppBackground)
             .padding(22.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        Text("‹  Назад", color = MutedText, fontSize = 16.sp, modifier = Modifier.padding(vertical = 6.dp))
         Text(
-            text = when (step) {
-                1 -> "Выбор фотографии"
-                2 -> "Выбор формы"
-                else -> "Размер виджета"
-            },
+            text = "‹  Назад",
+            color = MutedText,
+            fontSize = 16.sp,
+            modifier = Modifier
+                .clickable(onClick = onBack)
+                .padding(vertical = 8.dp)
+        )
+        Text(
+            text = "Выбор фотографии",
             color = MainText,
             fontSize = 26.sp,
             fontWeight = FontWeight.SemiBold
         )
-        Text(
-            text = "Экран подготовки. Следующим этапом подключим выбор фото и редактор.",
-            color = MutedText,
-            fontSize = 14.sp
-        )
-        Button(
-            onClick = onBack,
-            colors = ButtonDefaults.buttonColors(containerColor = AccentSurface),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Text("Вернуться")
+        if (photo != null) {
+            AsyncImage(
+                model = photo,
+                contentDescription = "Выбранная фотография",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentScale = ContentScale.Fit
+            )
+            Button(
+                onClick = onChooseAgain,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentSurface)
+            ) {
+                Text("Выбрать другую фотографию")
+            }
+            Text(
+                "Следующий этап — настройка формы и кадрирования фотографии.",
+                color = MutedText,
+                fontSize = 13.sp
+            )
+        } else {
+            Text("Выбери фотографию из галереи телефона.", color = MutedText, fontSize = 14.sp)
         }
     }
 }
