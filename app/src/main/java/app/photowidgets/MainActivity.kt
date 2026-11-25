@@ -455,7 +455,8 @@ private fun SizeSelectionScreen(
             if (animationStarted) {
                 androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
                     val progress = ripple.value
-                    val maxRadius = size.minDimension * 0.48f
+                    val canvasRadius = this.size.minDimension
+                    val maxRadius = canvasRadius * 0.48f
                     val radius = maxRadius * (0.08f + progress * 0.92f)
                     drawCircle(
                         color = Color.White.copy(alpha = (1f - progress) * 0.42f),
