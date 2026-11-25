@@ -1,6 +1,11 @@
 package app.photowidgets
 
 import android.net.Uri
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.Intent
+import android.app.PendingIntent
+import android.widget.Toast
 import android.os.Bundle
 import android.view.WindowManager
 import android.graphics.drawable.ColorDrawable
@@ -88,6 +93,7 @@ class MainActivity : ComponentActivity() {
                 ) { uri ->
                     if (uri != null) {
                         selectedPhoto = uri
+                        try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) { }
                         creating = 1
                         cropScale = 1f
                         cropX = 0f
@@ -148,7 +154,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                             creating == 2 -> ShapeSelectionScreen(shapeChoice, { shapeChoice = it }, { creating = 1 }, { creating = 3 })
-                            creating == 3 -> SizeSelectionScreen(onBack = { creating = 2 })
+                            creating == 3 -> SizeSelectionScreen(onBack = { creating = 2 }, onPublish = { publishPhotoWidget(selectedPhoto) })
                             selectedTab == 0 -> HomeScreen(
                                 onCreate = {
                                     photoPicker.launch(
@@ -162,6 +168,29 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+}
+
+
+private fun ComponentActivity.publishPhotoWidget(photoUri: Uri?) {
+    if (photoUri == null) {
+        Toast.makeText(this, "Сначала выбери фотографию", Toast.LENGTH_SHORT).show()
+        return
+    }
+    val manager = AppWidgetManager.getInstance(this)
+    val provider = ComponentName(this, PhotoWidgetProvider::class.java)
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && manager.isRequestPinAppWidgetSupported) {
+        val callbackIntent = Intent(this, PhotoWidgetProvider::class.java).apply {
+            action = PhotoWidgetProvider.ACTION_PIN_WIDGET
+            putExtra(PhotoWidgetProvider.EXTRA_PHOTO_URI, photoUri.toString())
+        }
+        val callback = PendingIntent.getBroadcast(this, photoUri.hashCode(), callbackIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+        if (!manager.requestPinAppWidget(provider, null, callback)) {
+            Toast.makeText(this, "Этот лаунчер не поддерживает добавление виджетов из приложения", Toast.LENGTH_LONG).show()
+        }
+    } else {
+        Toast.makeText(this, "Добавление из приложения не поддерживается этим лаунчером", Toast.LENGTH_LONG).show()
     }
 }
 
@@ -315,7 +344,7 @@ private fun ShapeSelectionScreen(
         }
         Spacer(Modifier.weight(1f))
         Box(
-            modifier = Modifier.fillMaxWidth().height(56.dp)
+            modifier = Modifier.fillMaxWidth().height(76.dp)
                 .background(AccentSurface, RoundedCornerShape(18.dp))
                 .clickable(onClick = onNext),
             contentAlignment = Alignment.Center
@@ -323,7 +352,7 @@ private fun ShapeSelectionScreen(
             Text(
                 text = "Далее",
                 color = Color.White,
-                fontSize = 18.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
@@ -332,7 +361,7 @@ private fun ShapeSelectionScreen(
 }
 
 @Composable
-private fun SizeSelectionScreen(onBack: () -> Unit) {
+private fun SizeSelectionScreen(onBack: () -> Unit, onPublish: () -> Unit) {
     var size by remember { mutableFloatStateOf(2f) }
     Column(Modifier.fillMaxSize().background(AppBackground).padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Text("‹  Назад", color = MutedText, modifier = Modifier.clickable(onClick = onBack).padding(vertical = 6.dp))
@@ -345,6 +374,10 @@ private fun SizeSelectionScreen(onBack: () -> Unit) {
                 Text("Предпросмотр", color = MutedText, fontSize = 12.sp)
             }
         }
-        Text("Экран выбора размера. Добавление настоящего виджета будет следующим этапом.", color = MutedText, fontSize = 13.sp)
+        Text("Android попросит подтвердить размещение виджета на рабочем столе.", color = MutedText, fontSize = 13.sp)
+        Button(onClick = onPublish, modifier = Modifier.fillMaxWidth().height(64.dp), shape = RoundedCornerShape(18.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = AccentSurface, contentColor = Color.White)) {
+            Text("Добавить на рабочий стол", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }
