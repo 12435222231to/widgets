@@ -9,11 +9,13 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "app.photowidgets"
+        // Keep the original app.photowidgets installation untouched.
+        // This package id allows testing the new build side-by-side.
+        applicationId = "app.photowidgets.test"
         minSdk = 31
         targetSdk = 35
         versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1
-        versionName = providers.gradleProperty("versionName").orNull ?: "0.2.0"
+        versionName = providers.gradleProperty("versionName").orNull ?: "0.2.0-test"
     }
 
     buildFeatures {
