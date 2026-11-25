@@ -3,6 +3,7 @@ package app.photowidgets
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -11,6 +12,18 @@ import java.io.InputStream
 import kotlin.math.max
 
 class PhotoWidgetProvider : AppWidgetProvider() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == ACTION_PIN_WIDGET) {
+            val widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+            val photoUri = intent.getStringExtra(EXTRA_PHOTO_URI)
+            if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID && photoUri != null) {
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+                    .putString(photoKey(widgetId), photoUri).apply()
+                updateWidget(context, widgetId)
+            }
+        }
+        super.onReceive(context, intent)
+    }
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -28,6 +41,8 @@ class PhotoWidgetProvider : AppWidgetProvider() {
 
     companion object {
         const val PREFS_NAME = "photo_widget_settings"
+        const val ACTION_PIN_WIDGET = "app.photowidgets.ACTION_PIN_WIDGET"
+        const val EXTRA_PHOTO_URI = "extra_photo_uri"
         fun photoKey(widgetId: Int) = "photo_$widgetId"
 
         fun updateWidget(context: Context, widgetId: Int) {
