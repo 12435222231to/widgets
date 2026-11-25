@@ -7,6 +7,5 @@
     android:initialLayout="@layout/widget_photo"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
-    android:configure="app.photowidgets.ConfigureWidgetActivity"
     android:description="@string/widget_description"
     android:updatePeriodMillis="0" />
