@@ -426,9 +426,10 @@ private fun SizeSelectionScreen(onBack: () -> Unit, onPublish: () -> Unit, onCom
                 contentAlignment = Alignment.Center
             ) {
                 androidx.compose.foundation.Canvas(Modifier.size(230.dp)) {
-                    val radius = size.minDimension * (0.12f + ripple * 0.42f)
-                    drawCircle(color = Color.White.copy(alpha = (1f - ripple) * 0.65f), radius = radius, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx()))
-                    drawCircle(color = Color.White.copy(alpha = (1f - ripple) * 0.25f), radius = radius * 0.72f, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()))
+                    val canvasRadius = this.size.minDimension
+                    val rippleRadius = canvasRadius * (0.12f + ripple * 0.42f)
+                    drawCircle(color = Color.White.copy(alpha = (1f - ripple) * 0.65f), radius = rippleRadius, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx()))
+                    drawCircle(color = Color.White.copy(alpha = (1f - ripple) * 0.25f), radius = rippleRadius * 0.72f, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()))
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("✓", color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.Light)
