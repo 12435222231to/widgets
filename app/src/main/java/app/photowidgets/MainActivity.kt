@@ -42,6 +42,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
+import android.appwidget.AppWidgetProviderInfo
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -171,7 +176,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-
 private fun ComponentActivity.publishPhotoWidget(photoUri: Uri?) {
     if (photoUri == null) {
         Toast.makeText(this, "Сначала выбери фотографию", Toast.LENGTH_SHORT).show()
@@ -242,24 +246,45 @@ private fun HomeScreen(onCreate: () -> Unit) {
 
 @Composable
 private fun MyWidgetsScreen() {
+    val context = LocalContext.current
+    val manager = remember { AppWidgetManager.getInstance(context) }
+    val provider = remember { ComponentName(context, PhotoWidgetProvider::class.java) }
+    val ids = remember { manager.getAppWidgetIds(provider).toList() }
+    val prefs = remember { context.getSharedPreferences(PhotoWidgetProvider.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
+    val entries = remember(ids) {
+        ids.mapNotNull { id ->
+            prefs.getString(PhotoWidgetProvider.photoKey(id), null)?.let { id to Uri.parse(it) }
+        }
+    }
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AppBackground)
-            .padding(22.dp),
+        modifier = Modifier.fillMaxSize().background(AppBackground).padding(22.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         Text("Мои виджеты", fontSize = 28.sp, fontWeight = FontWeight.SemiBold, color = MainText)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(CardBackground, RoundedCornerShape(22.dp))
-                .padding(22.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text("Здесь пока пусто", color = MainText, fontSize = 17.sp, fontWeight = FontWeight.Medium)
-            Text("Созданные виджеты появятся здесь", color = MutedText, fontSize = 13.sp)
+        if (entries.isEmpty()) {
+            Column(
+                Modifier.fillMaxWidth().background(CardBackground, RoundedCornerShape(22.dp)).padding(22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Здесь пока пусто", color = MainText, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+                Text("Созданные виджеты появятся здесь", color = MutedText, fontSize = 13.sp)
+            }
+        } else {
+            entries.forEachIndexed { index, entry ->
+                Column(
+                    Modifier.fillMaxWidth().background(CardBackground, RoundedCornerShape(20.dp)).padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Виджет ${index + 1}", color = MainText, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    AsyncImage(
+                        model = entry.second,
+                        contentDescription = "Фото виджета ${index + 1}",
+                        modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(14.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
         }
     }
 }
@@ -283,7 +308,7 @@ private fun PhotoEditorScreen(
         Text("Перемещай фото одним пальцем и меняй масштаб двумя пальцами.", color = MutedText, fontSize = 13.sp)
         Box(
             modifier = Modifier.fillMaxWidth().weight(1f)
-                .background(CardBackground, RoundedCornerShape(22.dp))
+                .background(Color.Transparent, RoundedCornerShape(22.dp))
         ) {
             // Transparent preview window reveals the live system wallpaper behind this area.
             AsyncImage(
@@ -363,6 +388,20 @@ private fun ShapeSelectionScreen(
 @Composable
 private fun SizeSelectionScreen(onBack: () -> Unit, onPublish: () -> Unit) {
     var size by remember { mutableFloatStateOf(2f) }
+    var showCreationAnimation by remember { mutableStateOf(false) }
+    var ripple by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(showCreationAnimation) {
+        if (showCreationAnimation) {
+            ripple = 0f
+            while (ripple < 1f) {
+                ripple = (ripple + 0.035f).coerceAtMost(1f)
+                delay(16)
+            }
+            delay(350)
+            showCreationAnimation = false
+            onBack()
+        }
+    }
     Column(Modifier.fillMaxSize().background(AppBackground).padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Text("‹  Назад", color = MutedText, modifier = Modifier.clickable(onClick = onBack).padding(vertical = 6.dp))
         Text("Размер виджета", color = MainText, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
@@ -375,9 +414,27 @@ private fun SizeSelectionScreen(onBack: () -> Unit, onPublish: () -> Unit) {
             }
         }
         Text("Android попросит подтвердить размещение виджета на рабочем столе.", color = MutedText, fontSize = 13.sp)
-        Button(onClick = onPublish, modifier = Modifier.fillMaxWidth().height(64.dp), shape = RoundedCornerShape(18.dp),
+        Button(onClick = { onPublish(); showCreationAnimation = true }, modifier = Modifier.fillMaxWidth().height(64.dp), shape = RoundedCornerShape(18.dp),
             colors = ButtonDefaults.buttonColors(containerColor = AccentSurface, contentColor = Color.White)) {
             Text("Добавить на рабочий стол", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+    if (showCreationAnimation) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { }) {
+            Box(
+                Modifier.fillMaxWidth().height(300.dp).background(AppBackground, RoundedCornerShape(28.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.foundation.Canvas(Modifier.size(230.dp)) {
+                    val radius = size.minDimension * (0.12f + ripple * 0.42f)
+                    drawCircle(color = Color.White.copy(alpha = (1f - ripple) * 0.65f), radius = radius, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx()))
+                    drawCircle(color = Color.White.copy(alpha = (1f - ripple) * 0.25f), radius = radius * 0.72f, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()))
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("✓", color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.Light)
+                    Text("Виджет создан", color = MainText, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                }
+            }
         }
     }
 }
