@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Виджеты</string>
+    <string name="app_name">Виджеты — тест</string>
     <string name="widget_description">Фотография на главном экране</string>
     <string name="widget_image_description">Выбранная фотография</string>
     <string name="widget_placeholder">Выбери фотографию</string>
