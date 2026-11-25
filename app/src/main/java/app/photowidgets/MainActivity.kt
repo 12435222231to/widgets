@@ -134,13 +134,12 @@ class MainActivity : ComponentActivity() {
                                 offsetX = cropX, onOffsetXChange = { cropX = it },
                                 offsetY = cropY, onOffsetYChange = { cropY = it },
                                 alpha = photoAlpha, onAlphaChange = { photoAlpha = it },
-                                onBack = ::goBack, onNext = { creating = 2 }, onChooseAgain = {
+                                onBack = ::goBack, onNext = { creating = 3 }, onChooseAgain = {
                                     photoPicker.launch(
                                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                     )
                                 }
                             )
-                            creating == 2 -> ShapeSelectionScreen(shapeChoice, { shapeChoice = it }, { creating = 1 }, { creating = 3 })
                             creating == 3 -> SizeSelectionScreen(onBack = { creating = 2 }, onPublish = { publishPhotoWidget(selectedPhoto) }, onComplete = { creating = 0; selectedTab = 0; selectedPhoto = null })
                             selectedTab == 0 -> HomeScreen(
                                 onCreate = {
