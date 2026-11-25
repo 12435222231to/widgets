@@ -16,9 +16,20 @@ class PhotoWidgetProvider : AppWidgetProvider() {
         if (intent.action == ACTION_PIN_WIDGET) {
             val widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
             val photoUri = intent.getStringExtra(EXTRA_PHOTO_URI)
+            val chosenSize = intent.getIntExtra(EXTRA_WIDGET_SIZE, 2).coerceIn(1, 4)
             if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID && photoUri != null) {
                 context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-                    .putString(photoKey(widgetId), photoUri).apply()
+                    .putString(photoKey(widgetId), photoUri)
+                    .putInt(sizeKey(widgetId), chosenSize)
+                    .apply()
+                val dimensionDp = 40 + chosenSize * 40
+                val options = android.os.Bundle().apply {
+                    putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, dimensionDp)
+                    putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, dimensionDp)
+                    putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, dimensionDp)
+                    putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, dimensionDp)
+                }
+                AppWidgetManager.getInstance(context).updateAppWidgetOptions(widgetId, options)
                 updateWidget(context, widgetId)
             }
         }
@@ -35,7 +46,7 @@ class PhotoWidgetProvider : AppWidgetProvider() {
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().apply {
-            appWidgetIds.forEach { remove(photoKey(it)) }
+            appWidgetIds.forEach { remove(photoKey(it)); remove(sizeKey(it)) }
         }.apply()
     }
 
@@ -43,7 +54,9 @@ class PhotoWidgetProvider : AppWidgetProvider() {
         const val PREFS_NAME = "photo_widget_settings"
         const val ACTION_PIN_WIDGET = "app.photowidgets.ACTION_PIN_WIDGET"
         const val EXTRA_PHOTO_URI = "extra_photo_uri"
+        const val EXTRA_WIDGET_SIZE = "extra_widget_size"
         fun photoKey(widgetId: Int) = "photo_$widgetId"
+        fun sizeKey(widgetId: Int) = "size_$widgetId"
 
         fun updateWidget(context: Context, widgetId: Int) {
             val views = RemoteViews(context.packageName, R.layout.widget_photo)
