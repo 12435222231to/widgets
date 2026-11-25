@@ -17,6 +17,8 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -40,6 +42,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.platform.LocalContext
 import android.appwidget.AppWidgetProviderInfo
 import kotlinx.coroutines.delay
@@ -140,7 +148,7 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                             )
-                            creating == 3 -> SizeSelectionScreen(onBack = { creating = 2 }, onPublish = { publishPhotoWidget(selectedPhoto) }, onComplete = { creating = 0; selectedTab = 0; selectedPhoto = null })
+                            creating == 3 -> SizeSelectionScreen(photo = selectedPhoto, onBack = { creating = 1 }, onPublish = { chosenSize -> publishPhotoWidget(selectedPhoto, chosenSize) }, onComplete = { creating = 0; selectedTab = 0; selectedPhoto = null })
                             selectedTab == 0 -> HomeScreen(
                                 onCreate = {
                                     photoPicker.launch(
@@ -158,7 +166,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private fun ComponentActivity.publishPhotoWidget(photoUri: Uri?) {
+private fun ComponentActivity.publishPhotoWidget(photoUri: Uri?, chosenSize: Int) {
     if (photoUri == null) {
         Toast.makeText(this, "Сначала выбери фотографию", Toast.LENGTH_SHORT).show()
         return
@@ -169,6 +177,7 @@ private fun ComponentActivity.publishPhotoWidget(photoUri: Uri?) {
         val callbackIntent = Intent(this, PhotoWidgetProvider::class.java).apply {
             action = PhotoWidgetProvider.ACTION_PIN_WIDGET
             putExtra(PhotoWidgetProvider.EXTRA_PHOTO_URI, photoUri.toString())
+            putExtra(PhotoWidgetProvider.EXTRA_WIDGET_SIZE, chosenSize)
         }
         val callback = PendingIntent.getBroadcast(this, photoUri.hashCode(), callbackIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
@@ -376,57 +385,100 @@ private fun ShapeSelectionScreen(
 }
 
 @Composable
-private fun SizeSelectionScreen(onBack: () -> Unit, onPublish: () -> Unit, onComplete: () -> Unit) {
+private fun SizeSelectionScreen(
+    photo: Uri?,
+    onBack: () -> Unit,
+    onPublish: (Int) -> Unit,
+    onComplete: () -> Unit
+) {
     var size by remember { mutableFloatStateOf(2f) }
-    var showCreationAnimation by remember { mutableStateOf(false) }
-    var ripple by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(showCreationAnimation) {
-        if (showCreationAnimation) {
-            ripple = 0f
-            while (ripple < 1f) {
-                ripple = (ripple + 0.035f).coerceAtMost(1f)
-                delay(16)
-            }
-            delay(350)
-            showCreationAnimation = false
-            onPublish()
-            delay(300)
+    var animationStarted by remember { mutableStateOf(false) }
+    val ripple = remember { Animatable(0f) }
+    val previewSize = (65 + size * 22).dp
+    val animatedPreviewSize by animateDpAsState(
+        targetValue = if (animationStarted) 148.dp else previewSize,
+        animationSpec = tween(durationMillis = 520),
+        label = "preview-size"
+    )
+
+    LaunchedEffect(animationStarted) {
+        if (animationStarted) {
+            delay(520)
+            ripple.animateTo(1f, animationSpec = tween(durationMillis = 850))
+            delay(180)
+            onPublish(size.toInt())
+            delay(250)
             onComplete()
         }
     }
-    Column(Modifier.fillMaxSize().background(AppBackground).padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Text("‹  Назад", color = MutedText, modifier = Modifier.clickable(onClick = onBack).padding(vertical = 6.dp))
-        Text("Размер виджета", color = MainText, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
-        Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            Slider(value = size, onValueChange = { size = it }, valueRange = 1f..4f, steps = 2, modifier = Modifier.weight(0.7f))
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Surface(Modifier.size((65 + size * 22).dp), shape = RoundedCornerShape(18.dp), color = AccentSurface) {}
-                Text("${size.toInt()} × ${size.toInt()}", color = MainText, fontSize = 18.sp)
-                Text("Предпросмотр", color = MutedText, fontSize = 12.sp)
+
+    Column(
+        Modifier.fillMaxSize().background(AppBackground).padding(22.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        AnimatedVisibility(visible = !animationStarted, exit = fadeOut(tween(220))) {
+            Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                Text("‹  Назад", color = MutedText, modifier = Modifier.clickable(onClick = onBack).padding(vertical = 6.dp))
+                Text("Размер виджета", color = MainText, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
+                Slider(value = size, onValueChange = { size = it }, valueRange = 1f..4f, steps = 2)
+                Text("Размер: ${size.toInt()} × ${size.toInt()}", color = MainText, fontSize = 16.sp)
+                Text("Android может дополнительно изменить габариты виджета при размещении.", color = MutedText, fontSize = 13.sp)
             }
         }
-        Text("Android попросит подтвердить размещение виджета на рабочем столе.", color = MutedText, fontSize = 13.sp)
-        Button(onClick = { showCreationAnimation = true }, modifier = Modifier.fillMaxWidth().height(64.dp), shape = RoundedCornerShape(18.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AccentSurface, contentColor = Color.White)) {
-            Text("Добавить на рабочий стол", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-        }
-    }
-    if (showCreationAnimation) {
-        androidx.compose.ui.window.Dialog(onDismissRequest = { }) {
+
+        BoxWithConstraints(
+            Modifier.fillMaxWidth().weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            val startOffset = ((maxWidth - previewSize) / 2).coerceAtLeast(0.dp)
+            val animatedOffset by animateDpAsState(
+                targetValue = if (animationStarted) 0.dp else startOffset,
+                animationSpec = tween(durationMillis = 520),
+                label = "preview-position"
+            )
             Box(
-                Modifier.fillMaxWidth().height(300.dp).background(AppBackground, RoundedCornerShape(28.dp)),
+                Modifier
+                    .align(Alignment.Center)
+                    .offset(x = animatedOffset)
+                    .size(animatedPreviewSize)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(AccentSurface),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.foundation.Canvas(Modifier.size(230.dp)) {
-                    val canvasRadius = this.size.minDimension
-                    val rippleRadius = canvasRadius * (0.12f + ripple * 0.42f)
-                    drawCircle(color = Color.White.copy(alpha = (1f - ripple) * 0.65f), radius = rippleRadius, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx()))
-                    drawCircle(color = Color.White.copy(alpha = (1f - ripple) * 0.25f), radius = rippleRadius * 0.72f, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()))
+                AsyncImage(
+                    model = photo,
+                    contentDescription = "Предпросмотр фотографии виджета",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            if (animationStarted) {
+                androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                    val progress = ripple.value
+                    val maxRadius = size.minDimension * 0.48f
+                    val radius = maxRadius * (0.08f + progress * 0.92f)
+                    drawCircle(
+                        color = Color.White.copy(alpha = (1f - progress) * 0.42f),
+                        radius = radius,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
+                    )
+                    drawCircle(
+                        color = Color.White.copy(alpha = (1f - progress) * 0.18f),
+                        radius = radius * 0.78f,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx())
+                    )
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("✓", color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.Light)
-                    Text("Виджет создан", color = MainText, fontSize = 18.sp, fontWeight = FontWeight.Medium)
-                }
+            }
+        }
+
+        AnimatedVisibility(visible = !animationStarted, exit = fadeOut(tween(220))) {
+            Button(
+                onClick = { animationStarted = true },
+                modifier = Modifier.fillMaxWidth().height(64.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentSurface, contentColor = Color.White)
+            ) {
+                Text("Добавить на рабочий стол", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
