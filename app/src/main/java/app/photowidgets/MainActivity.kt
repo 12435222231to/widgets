@@ -35,8 +35,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -121,23 +119,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Scaffold(
-                    containerColor = if (creating == 1) Color.Transparent else AppBackground,
-                    bottomBar = {
-                        NavigationBar(containerColor = Color(0xFF181A1F)) {
-                            NavigationBarItem(
-                                selected = selectedTab == 0 && creating == 0,
-                                onClick = { selectedTab = 0; creating = 0 },
-                                icon = { Text("⌂", fontSize = 21.sp) },
-                                label = { Text("Главная") }
-                            )
-                            NavigationBarItem(
-                                selected = selectedTab == 1 && creating == 0,
-                                onClick = { selectedTab = 1; creating = 0 },
-                                icon = { Text("▦", fontSize = 19.sp) },
-                                label = { Text("Мои виджеты") }
-                            )
-                        }
-                    }
+                    containerColor = if (creating == 1) Color.Transparent else AppBackground
                 ) { innerPadding ->
                     Surface(
                         modifier = Modifier
@@ -165,7 +147,8 @@ class MainActivity : ComponentActivity() {
                                     photoPicker.launch(
                                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                     )
-                                }
+                                },
+                                onMyWidgets = { selectedTab = 1 }
                             )
                             else -> MyWidgetsScreen()
                         }
@@ -199,7 +182,7 @@ private fun ComponentActivity.publishPhotoWidget(photoUri: Uri?) {
 }
 
 @Composable
-private fun HomeScreen(onCreate: () -> Unit) {
+private fun HomeScreen(onCreate: () -> Unit, onMyWidgets: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -240,6 +223,14 @@ private fun HomeScreen(onCreate: () -> Unit) {
                 Text("+", fontSize = 23.sp, fontWeight = FontWeight.Light)
                 Text("Создать виджет", fontSize = 16.sp, fontWeight = FontWeight.Medium)
             }
+        }
+        Button(
+            onClick = onMyWidgets,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(18.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = CardBackground, contentColor = MainText)
+        ) {
+            Text("Мои виджеты", fontSize = 16.sp, fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -399,6 +390,8 @@ private fun SizeSelectionScreen(onBack: () -> Unit, onPublish: () -> Unit, onCom
             }
             delay(350)
             showCreationAnimation = false
+            onPublish()
+            delay(300)
             onComplete()
         }
     }
@@ -414,7 +407,7 @@ private fun SizeSelectionScreen(onBack: () -> Unit, onPublish: () -> Unit, onCom
             }
         }
         Text("Android попросит подтвердить размещение виджета на рабочем столе.", color = MutedText, fontSize = 13.sp)
-        Button(onClick = { onPublish(); showCreationAnimation = true }, modifier = Modifier.fillMaxWidth().height(64.dp), shape = RoundedCornerShape(18.dp),
+        Button(onClick = { showCreationAnimation = true }, modifier = Modifier.fillMaxWidth().height(64.dp), shape = RoundedCornerShape(18.dp),
             colors = ButtonDefaults.buttonColors(containerColor = AccentSurface, contentColor = Color.White)) {
             Text("Добавить на рабочий стол", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         }
