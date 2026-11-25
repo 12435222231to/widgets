@@ -12,8 +12,8 @@ android {
         applicationId = "app.photowidgets"
         minSdk = 31
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.2.0"
+        versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1
+        versionName = providers.gradleProperty("versionName").orNull ?: "0.2.0"
     }
 
     buildFeatures {
