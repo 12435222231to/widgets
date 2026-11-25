@@ -159,7 +159,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                             creating == 2 -> ShapeSelectionScreen(shapeChoice, { shapeChoice = it }, { creating = 1 }, { creating = 3 })
-                            creating == 3 -> SizeSelectionScreen(onBack = { creating = 2 }, onPublish = { publishPhotoWidget(selectedPhoto) })
+                            creating == 3 -> SizeSelectionScreen(onBack = { creating = 2 }, onPublish = { publishPhotoWidget(selectedPhoto) }, onComplete = { creating = 0; selectedTab = 0; selectedPhoto = null })
                             selectedTab == 0 -> HomeScreen(
                                 onCreate = {
                                     photoPicker.launch(
@@ -386,7 +386,7 @@ private fun ShapeSelectionScreen(
 }
 
 @Composable
-private fun SizeSelectionScreen(onBack: () -> Unit, onPublish: () -> Unit) {
+private fun SizeSelectionScreen(onBack: () -> Unit, onPublish: () -> Unit, onComplete: () -> Unit) {
     var size by remember { mutableFloatStateOf(2f) }
     var showCreationAnimation by remember { mutableStateOf(false) }
     var ripple by remember { mutableFloatStateOf(0f) }
@@ -399,7 +399,7 @@ private fun SizeSelectionScreen(onBack: () -> Unit, onPublish: () -> Unit) {
             }
             delay(350)
             showCreationAnimation = false
-            onBack()
+            onComplete()
         }
     }
     Column(Modifier.fillMaxSize().background(AppBackground).padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
